@@ -17,6 +17,8 @@ jobs:
 
     outputs:
       image_tag: ${{ steps.tag.outputs.short_sha }}
+      image_uri_shellhttpd: ${{ steps.pinning.outputs.image_uri_shellhttpd }}
+
     steps:
       -
         name: Checkout
@@ -58,3 +60,37 @@ jobs:
           uri=ghcr.io/doanac/andy-corp-${{ matrix.docker_dir }}@${{ steps.docker_build.outputs.digest }}
           echo "image_uri_${{matrix.docker_dir}}=$uri" >> $GITHUB_OUTPUT
 
+  build-app:
+    needs: build-images
+    runs-on: ubuntu-latest
+    container:
+      image: foundries/lmp-app-tools
+    steps:
+      -
+        name: Checkout
+        uses: actions/checkout@v6
+      -
+        name: Login to registry
+        uses: docker/login-action@v3
+        with:
+          registry: https://ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      -
+        name: Build and push shellhttpd
+        id: app
+        working-directory: shellhttpd
+        run: |
+          composectl publish -d app.hash --pinned-images ${{needs.build-images.outputs.image_uri_shellhttpd}} ghcr.io/doanac/andy-corp-shellhttpd-app:${{ needs.build-images.outputs.image_tag }} amd64,arm64
+          uri="ghcr.io/doanac/andy-corp-shellhttpd-app@$(cat app.hash)"
+          echo "app_uri=$uri" >> $GITHUB_OUTPUT
+
+          mkdir /tmp/apps
+          composectl pull -i /tmp/apps -s /tmp/apps ${uri}
+      -
+        name: Save content for offline use
+        uses: actions/upload-artifact@v4
+        with:
+          name: offline-apps
+          path: /tmp/apps
+          if-no-files: error

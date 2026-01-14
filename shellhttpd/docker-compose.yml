@@ -2,7 +2,7 @@ version: '3.2'
 
 services:
   httpd:
-    image: ghcr.io/doanac/andy-corp-shellhttpd:latest
+    image: ghcr.io/doanac/andy-corp-shellhttpd
     restart: always
     ports:
       - 8080:${PORT-8080}
