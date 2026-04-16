@@ -1,0 +1,17 @@
+services:
+  dg:
+    image: ghcr.io/doanac/andy-corp-shellhttpd
+    command:
+      - --datadir=/data
+      - serve
+      - --uiport=8000
+    volumes:
+      - /data/dg-sat:/data
+    ports:
+      - 8443:8443
+    networks:
+      - gavelci_default
+
+networks:
+  gavelci_default:
+    external: true
