@@ -1,7 +1,10 @@
-name: ci-pr
+# Workflow for pushes to main branch
+name: ci-main
 
 on:
-  pull_request:
+  push:
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
@@ -12,4 +15,4 @@ jobs:
   call-shared:
     uses: ./.github/workflows/shared.yml
     with:
-      imgtag: "pr-${{ github.event.number }}"
+      imgtag: ${{ github.ref_name}}
