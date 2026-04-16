@@ -1,6 +1,6 @@
 services:
   dg:
-    image: ghcr.io/doanac/andy-corp-shellhttpd
+    image: ghcr.io/doanac/andy-corp-dg-satellite
     command:
       - --datadir=/data
       - serve
