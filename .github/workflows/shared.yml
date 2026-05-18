@@ -119,15 +119,15 @@ jobs:
                   "custom" : {
                     "createdAt" : "${now}",
                     "docker_compose_apps": {
-                      "shellhttpd": {
+                      "andy-corp-shellhttpd-app": {
                         "uri": "${{ steps.shellhttpd.outputs.uri }}"
                       },
-                      "dg-satellite": {
+                      "andy-corp-dg-satellite-app": {
                         "uri": "${{ steps.dgsat.outputs.uri }}"
                       }
                     },
                     "hardwareIds" : [
-                      "intel-corei7-64"
+                      "amd64-linux"
                     ],
                     "name" : "amd64-linux",
                     "tags" : [
