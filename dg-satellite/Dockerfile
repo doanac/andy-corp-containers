@@ -1,6 +1,6 @@
 FROM alpine:latest as base
 
-RUN wget -O /tmp/dg-sat https://github.com/foundriesio/dg-satellite/releases/download/v0.7/dg-sat-linux-amd64
+RUN wget -O /tmp/dg-sat https://github.com/foundriesio/dg-satellite/releases/download/v0.9.1/dg-sat-linux-amd64
 
 FROM gcr.io/distroless/base-nossl-debian13
 COPY --from=base --chmod=0755 /tmp/dg-sat /dg-sat
