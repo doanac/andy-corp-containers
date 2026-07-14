@@ -120,6 +120,21 @@ jobs:
           echo "uri=$uri" >> $GITHUB_OUTPUT
           composectl pull -i /tmp/update/apps -s /tmp/update/apps ${uri}
 
+      - name: Build and push homeassistant
+        id: homeassistant
+        working-directory: homeassistant
+        run: |
+          set -x
+          tag="${{ needs.build-images.outputs.image_tag }}"
+          bn="${{ steps.buildnumber.outputs.build_number || '' }}"
+          if [ -n "${bn}" ] ; then
+            tag="${bn}_${tag}"
+          fi
+          composectl publish -d app.hash ghcr.io/doanac/andy-corp-homeassistant-app:${tag} amd64
+          uri="ghcr.io/doanac/andy-corp-homeassistant-app@$(cat app.hash)"
+          echo "uri=$uri" >> $GITHUB_OUTPUT
+          composectl pull -i /tmp/update/apps -s /tmp/update/apps ${uri}
+
       - name: Save content for offline use
         uses: actions/upload-artifact@v4
         with:

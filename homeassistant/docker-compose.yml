@@ -1,0 +1,18 @@
+services:
+  home-assistant:
+    image: homeassistant/home-assistant:stable
+    volumes:
+      - /home/doanac/home-assistant/config:/config
+      - /dev/ttyACM0:/dev/ttyACM0
+    privileged: true
+    restart: always
+
+  proxy:
+    image: nginx:alpine
+    restart: always
+    ports:
+      - 8443:443
+    volumes:
+      - /run/secrets:/secrets
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf
+      - ./nginx.crt:/nginx.crt
