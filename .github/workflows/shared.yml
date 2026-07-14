@@ -75,76 +75,50 @@ jobs:
           registry: https://ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Generate build number
         id: buildnumber
+        if: github.event_name == 'push'
         uses: onyxmueller/build-tag-number@v1
         with:
           token: ${{secrets.github_token}}
+
       - name: Create offline update directory
         run: |
           mkdir /tmp/update
           mkdir /tmp/update/apps
           mkdir /tmp/update/tuf
+
       - name: Build and push shellhttpd
         id: shellhttpd
         working-directory: shellhttpd
         run: |
           set -x
-          composectl publish -d app.hash --pinned-images ${{needs.build-images.outputs.image_uri_shellhttpd}} ghcr.io/doanac/andy-corp-shellhttpd-app:${{ needs.build-images.outputs.image_tag }} amd64,arm64
+          tag="${{ needs.build-images.outputs.image_tag }}"
+          bn="${{ steps.buildnumber.outputs.build_number || '' }}"
+          if [ -n "${bn}" ] ; then
+            tag="${bn}_${tag}"
+          fi
+          composectl publish -d app.hash --pinned-images ${{needs.build-images.outputs.image_uri_shellhttpd}} ghcr.io/doanac/andy-corp-shellhttpd-app:${tag} amd64,arm64
           uri="ghcr.io/doanac/andy-corp-shellhttpd-app@$(cat app.hash)"
           echo "uri=$uri" >> $GITHUB_OUTPUT
           composectl pull -i /tmp/update/apps -s /tmp/update/apps ${uri}
+
       - name: Build and push dg-satellite
         id: dgsat
         working-directory: dg-satellite
         run: |
           set -x
-          composectl publish -d app.hash --pinned-images ${{needs.build-images.outputs.image_uri_dgsat}} ghcr.io/doanac/andy-corp-dg-satellite-app:${{ needs.build-images.outputs.image_tag }} amd64,arm64
+          tag="${{ needs.build-images.outputs.image_tag }}"
+          bn="${{ steps.buildnumber.outputs.build_number || '' }}"
+          if [ -n "${bn}" ] ; then
+            tag="${bn}_${tag}"
+          fi
+          composectl publish -d app.hash --pinned-images ${{needs.build-images.outputs.image_uri_dgsat}} ghcr.io/doanac/andy-corp-dg-satellite-app:${tag} amd64,arm64
           uri="ghcr.io/doanac/andy-corp-dg-satellite-app@$(cat app.hash)"
           echo "uri=$uri" >> $GITHUB_OUTPUT
           composectl pull -i /tmp/update/apps -s /tmp/update/apps ${uri}
-      - name: Create TUF target
-        run: |
-          set -x
-          now=$(date +'%Y-%m-%dT:%H:%M:%SZ')
-          expires=$(date -d@"$(( `date +%s`+31536000))" +'%Y-%m-%dT:%H:%M:%SZ') # 1 year from now
-          build_num=${{ steps.buildnumber.outputs.build_number}}
-          cat >/tmp/update/tuf/targets.json <<EOF
-          {
-            "signed" : {
-              "_type" : "Targets",
-              "expires" : "${expires}",
-              "targets" : {
-                "amd64-linux-${build_num}" : {
-                  "custom" : {
-                    "createdAt" : "${now}",
-                    "docker_compose_apps": {
-                      "andy-corp-shellhttpd-app": {
-                        "uri": "${{ steps.shellhttpd.outputs.uri }}"
-                      },
-                      "andy-corp-dg-satellite-app": {
-                        "uri": "${{ steps.dgsat.outputs.uri }}"
-                      }
-                    },
-                    "hardwareIds" : [
-                      "amd64-linux"
-                    ],
-                    "name" : "amd64-linux",
-                    "tags" : [
-                      "${{ github.ref_name }}"
-                    ],
-                    "targetFormat" : "OSTREE",
-                    "version" : "${build_num}"
-                  },
-                  "hashes" : {
-                    "sha256" : "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-                  },
-                  "length" : 0
-                }
-              }
-            }
-          }
-          EOF
+
       - name: Save content for offline use
         uses: actions/upload-artifact@v4
         with:
