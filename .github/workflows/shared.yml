@@ -87,7 +87,8 @@ jobs:
         run: |
           mkdir /tmp/update
           mkdir /tmp/update/apps
-          mkdir /tmp/update/tuf
+          version="${{ steps.buildnumber.outputs.build_number || 'local' }}"
+          echo ${version} > /tmp/update/apps/version
 
       - name: Build and push shellhttpd
         id: shellhttpd
