@@ -13,6 +13,7 @@ permissions:
 
 jobs:
   call-shared:
+    name: main
     uses: ./.github/workflows/shared.yml
     with:
       imgtag: ${{ github.ref_name }}

@@ -10,6 +10,7 @@ permissions:
 
 jobs:
   call-shared:
+    name: pr
     uses: ./.github/workflows/shared.yml
     with:
       imgtag: "pr-${{ github.event.number }}"
