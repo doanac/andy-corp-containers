@@ -22,10 +22,10 @@ jobs:
       matrix:
         docker_dir: [shellhttpd, dg-satellite]
 
+    # The pinned (digest) URI of each image is published as an artifact rather
+    # than a matrix job output, since matrix job outputs are last-writer-wins.
     outputs:
       image_tag: ${{ steps.tag.outputs.short_sha }}
-      image_uri_shellhttpd: ${{ steps.pinning.outputs.image_uri_shellhttpd }}
-      image_uri_dgsat: ${{ steps.pinning.outputs.image_uri_dg-satellite}}
 
     steps:
       - name: Checkout
@@ -55,17 +55,54 @@ jobs:
           tags: |
             ghcr.io/doanac/andy-corp-${{ matrix.docker_dir }}:${{ steps.tag.outputs.short_sha }}
             ghcr.io/doanac/andy-corp-${{ matrix.docker_dir }}:${{ inputs.imgtag }}
-      - name: Save image URI
-        id: pinning
+      - name: Save pinned image URI
         run: |
-          uri=ghcr.io/doanac/andy-corp-${{ matrix.docker_dir }}@${{ steps.docker_build.outputs.digest }}
-          echo "image_uri_${{matrix.docker_dir}}=$uri" >> $GITHUB_OUTPUT
-
-  build-app:
+          mkdir -p pinned
+          echo "ghcr.io/doanac/andy-corp-${{ matrix.docker_dir }}@${{ steps.docker_build.outputs.digest }}" > "pinned/${{ matrix.docker_dir }}"
+      - name: Upload pinned image URI
+        uses: actions/upload-artifact@v4
+        with:
+          name: pinned-${{ matrix.docker_dir }}
+          path: pinned
+          if-no-files-found: error
+  
+  # Generate the build number exactly once so every app shares the same value.
+  # Only bump it once the images have built successfully.
+  version:
     needs: build-images
+    runs-on: ubuntu-latest
+    outputs:
+      build_number: ${{ steps.buildnumber.outputs.build_number }}
+    steps:
+      - name: Generate build number
+        id: buildnumber
+        if: github.event_name == 'push'
+        uses: onyxmueller/build-tag-number@v1
+        with:
+          token: ${{ secrets.github_token }}
+
+
+  # One matrix leg per app. Apps and images are independent: an app may pin
+  # zero, one, or many images, and image names need not match the app name.
+  # The `images` field is a space-separated list of image names (from the
+  # build-images matrix) whose pinned digests should be passed to the app.
+  build-app:
+    needs: [version, build-images]
     runs-on: ubuntu-latest
     container:
       image: foundries/lmp-app-tools
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - app: shellhttpd
+            images: shellhttpd
+            platforms: amd64,arm64
+          - app: dg-satellite
+            images: dg-satellite
+            platforms: amd64,arm64
+          - app: homeassistant
+            platforms: amd64
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -76,68 +113,79 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Generate build number
-        id: buildnumber
-        if: github.event_name == 'push'
-        uses: onyxmueller/build-tag-number@v1
+      - name: Download pinned image URIs
+        uses: actions/download-artifact@v4
         with:
-          token: ${{secrets.github_token}}
+          pattern: pinned-*
+          path: pinned
+          merge-multiple: true
+
+      - name: Build and push app
+        id: build
+        working-directory: ${{ matrix.app }}
+        run: |
+          set -x
+          tag="${{ needs.build-images.outputs.image_tag }}"
+          bn="${{ needs.version.outputs.build_number || '' }}"
+          if [ -n "${bn}" ] ; then
+            tag="${bn}_${tag}"
+          fi
+          pinned_args=""
+          uris=""
+          for img in ${{ matrix.images }} ; do
+            uri="$(cat ../pinned/${img})"
+            uris="${uris:+${uris},}${uri}"
+          done
+          if [ -n "${uris}" ] ; then
+            pinned_args="--pinned-images ${uris}"
+          fi
+          composectl publish -d app.hash ${pinned_args} ghcr.io/doanac/andy-corp-${{ matrix.app }}-app:${tag} ${{ matrix.platforms }}
+          uri="ghcr.io/doanac/andy-corp-${{ matrix.app }}-app@$(cat app.hash)"
+          mkdir -p ../app-uris
+          echo "${uri}" > "../app-uris/${{ matrix.app }}"
+
+      - name: Upload app URI
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-uri-${{ matrix.app }}
+          path: app-uris
+          if-no-files-found: error
+
+  # Pull every published app into a single store, sequentially, so the offline
+  # bundle's store index stays consistent, then upload it as one artifact.
+  assemble-offline:
+    needs: [version, build-app]
+    runs-on: ubuntu-latest
+    container:
+      image: foundries/lmp-app-tools
+    steps:
+      - name: Login to registry
+        uses: docker/login-action@v3
+        with:
+          registry: https://ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download app URIs
+        uses: actions/download-artifact@v4
+        with:
+          pattern: app-uri-*
+          path: app-uris
+          merge-multiple: true
 
       - name: Create offline update directory
         run: |
-          mkdir /tmp/update
-          mkdir /tmp/update/apps
-          version="${{ steps.buildnumber.outputs.build_number || 'local' }}"
-          echo ${version} > /tmp/update/apps/version
-
-      - name: Build and push shellhttpd
-        id: shellhttpd
-        working-directory: shellhttpd
-        run: |
           set -x
-          tag="${{ needs.build-images.outputs.image_tag }}"
-          bn="${{ steps.buildnumber.outputs.build_number || '' }}"
-          if [ -n "${bn}" ] ; then
-            tag="${bn}_${tag}"
-          fi
-          composectl publish -d app.hash --pinned-images ${{needs.build-images.outputs.image_uri_shellhttpd}} ghcr.io/doanac/andy-corp-shellhttpd-app:${tag} amd64,arm64
-          uri="ghcr.io/doanac/andy-corp-shellhttpd-app@$(cat app.hash)"
-          echo "uri=$uri" >> $GITHUB_OUTPUT
-          composectl pull -i /tmp/update/apps -s /tmp/update/apps ${uri}
-
-      - name: Build and push dg-satellite
-        id: dgsat
-        working-directory: dg-satellite
-        run: |
-          set -x
-          tag="${{ needs.build-images.outputs.image_tag }}"
-          bn="${{ steps.buildnumber.outputs.build_number || '' }}"
-          if [ -n "${bn}" ] ; then
-            tag="${bn}_${tag}"
-          fi
-          composectl publish -d app.hash --pinned-images ${{needs.build-images.outputs.image_uri_dgsat}} ghcr.io/doanac/andy-corp-dg-satellite-app:${tag} amd64,arm64
-          uri="ghcr.io/doanac/andy-corp-dg-satellite-app@$(cat app.hash)"
-          echo "uri=$uri" >> $GITHUB_OUTPUT
-          composectl pull -i /tmp/update/apps -s /tmp/update/apps ${uri}
-
-      - name: Build and push homeassistant
-        id: homeassistant
-        working-directory: homeassistant
-        run: |
-          set -x
-          tag="${{ needs.build-images.outputs.image_tag }}"
-          bn="${{ steps.buildnumber.outputs.build_number || '' }}"
-          if [ -n "${bn}" ] ; then
-            tag="${bn}_${tag}"
-          fi
-          composectl publish -d app.hash ghcr.io/doanac/andy-corp-homeassistant-app:${tag} amd64
-          uri="ghcr.io/doanac/andy-corp-homeassistant-app@$(cat app.hash)"
-          echo "uri=$uri" >> $GITHUB_OUTPUT
-          composectl pull -i /tmp/update/apps -s /tmp/update/apps ${uri}
+          mkdir -p update/apps
+          echo "${{ needs.version.outputs.build_number || 'local' }}" > update/apps/version
+          for f in app-uris/* ; do
+            uri="$(cat "${f}")"
+            composectl pull -i update/apps -s update/apps "${uri}"
+          done
 
       - name: Save content for offline use
         uses: actions/upload-artifact@v4
         with:
           name: offline-apps
-          path: /tmp/update
+          path: update
           if-no-files-found: error
