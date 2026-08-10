@@ -20,7 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        docker_dir: [shellhttpd, dg-satellite]
+        docker_dir: [glance, shellhttpd, dg-satellite]
 
     # The pinned (digest) URI of each image is published as an artifact rather
     # than a matrix job output, since matrix job outputs are last-writer-wins.
@@ -65,7 +65,7 @@ jobs:
           name: pinned-${{ matrix.docker_dir }}
           path: pinned
           if-no-files-found: error
-  
+
   # Generate the build number exactly once so every app shares the same value.
   # Only bump it once the images have built successfully.
   version:
@@ -102,6 +102,9 @@ jobs:
             images: dg-satellite
             platforms: amd64,arm64
           - app: homeassistant
+            platforms: amd64
+          - app: glance
+            images: glance
             platforms: amd64
     steps:
       - name: Checkout

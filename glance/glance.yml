@@ -1,0 +1,81 @@
+theme:
+  light: true
+  background-color: 220 23 95
+  contrast-multiplier: 1.0
+  primary-color: 220 91 54
+  positive-color: 109 58 40
+  negative-color: 347 87 44
+
+pages:
+  - name: Home
+    columns:
+      - size: small
+        widgets:
+          - type: rss
+            limit: 10
+            collapse-after: 6
+            cache: 1h
+            feeds:
+              - url: http://rss.slashdot.org/Slashdot/slashdotMain
+                title: Slashdot
+                limit: 3
+              - url: http://rss.slashdot.org/Slashdot/slashdotDevelopers
+                title: Slashdot Developers
+
+          - type: calendar
+
+      - size: full
+        widgets:
+          - type: group
+            widgets:
+            - type: rss
+              collapse-after: 6
+              feeds:
+                - url: https://feeds.bbci.co.uk/news/rss.xml
+                  title: BBC
+                - url: https://news.google.com/rss/search?q=site%3Areuters.com&hl=en-US&gl=US&ceid=US%3Aen
+                  title: Reuters
+
+          - type: group
+            widgets:
+              - type: hacker-news
+              - type: reddit
+                subreddit: technology
+                show-thumbnails: true
+              - type: reddit
+                subreddit: selfhosted
+                show-thumbnails: true
+
+      - size: small
+        widgets:
+          - type: markets
+            markets:
+              - symbol: SPY
+                name: S&P 500
+              - symbol: VFIAX
+                name: VFIAX
+              - symbol: BTC-USD
+                name: Bitcoin
+              - symbol: NVDA
+                name: NVIDIA
+              - symbol: QCOM
+                name: Qualcomm
+              - symbol: MSFT
+                name: Microsoft
+              - symbol: IBM
+                name: IBM
+
+          - type: weather
+            location: Austin, TX
+            hour-format: 12h
+            units: imperial
+
+          - type: clock
+            hour-format: 12h
+            timezones:
+            - timezone: Europe/London
+              label: London
+            - timezone: Europe/Kyiv
+              label: Ukraine
+            - timezone: America/Sao_Paulo
+              label: Brazil

@@ -1,0 +1,11 @@
+services:
+  home:
+    image: ghcr.io/doanac/andy-corp-glance
+    ports:
+      - 8080:8080
+    networks:
+      - gavelci_default
+
+networks:
+  gavelci_default:
+    external: true
